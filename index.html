@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Bot - Telegram Web App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            flex: 1;
+            padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Header Styles */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 16px;
+            border-radius: 0 0 24px 24px;
+            margin: -16px -16px 20px -16px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .quiz-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .quiz-info {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            height: 8px;
+            border-radius: 4px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* Question Card */
+        .question-card {
+            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .question-number {
+            color: var(--tg-theme-hint-color, #999999);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .question-text {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        /* Answer Options */
+        .answer-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .answer-option {
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            border: 2px solid var(--tg-theme-secondary-bg-color, #e5e5e5);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .answer-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-option.selected {
+            border-color: var(--tg-theme-button-color, #3390ec);
+            background-color: rgba(51, 144, 236, 0.1);
+        }
+
+        .answer-option.correct {
+            border-color: #4caf50;
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+
+        .answer-option.incorrect {
+            border-color: #f44336;
+            background-color: rgba(244, 67, 54, 0.1);
+        }
+
+        .answer-option.disabled {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* Timer */
+        .timer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            border: 2px solid var(--tg-theme-secondary-bg-color, #e5e5e5);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+
+        .timer.warning {
+            border-color: #ff9800;
+            color: #ff9800;
+        }
+
+        .timer.danger {
+            border-color: #f44336;
+            color: #f44336;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        /* Buttons */
+        .button {
+            background-color: var(--tg-theme-button-color, #3390ec);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 12px;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(51, 144, 236, 0.3);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Results Screen */
+        .results-screen {
+            text-align: center;
+            padding: 40px 20px;
+            display: none;
+        }
+
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        }
+
+        .score-text {
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .results-message {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .results-details {
+            font-size: 16px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 32px;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-top-color: var(--tg-theme-button-color, #3390ec);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Start Screen */
+        .start-screen {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .quiz-icon {
+            font-size: 80px;
+            margin-bottom: 24px;
+        }
+
+        .start-title {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+
+        .start-description {
+            font-size: 16px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .header {
+                padding: 20px 16px;
+            }
+
+            .quiz-title {
+                font-size: 20px;
+            }
+
+            .question-text {
+                font-size: 16px;
+            }
+
+            .answer-option {
+                padding: 14px;
+                font-size: 15px;
+            }
+        }
+
+        /* Dark Theme Support */
+        @media (prefers-color-scheme: dark) {
+            .answer-option {
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            }
+        }
+
+        /* Haptic Feedback Animation */
+        .haptic {
+            animation: haptic 0.1s ease;
+        }
+
+        @keyframes haptic {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(0.98); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Start Screen -->
+        <div id="startScreen" class="container start-screen">
+            <div class="quiz-icon">🎓</div>
+            <h1 class="start-title">Science Quiz Challenge</h1>
+            <p class="start-description">
+                Test your knowledge with 10 exciting questions!<br>
+                You have 30 seconds per question.
+            </p>
+            <button class="button" onclick="startQuiz()">Start Quiz</button>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quizScreen" class="container" style="display: none;">
+            <div class="header">
+                <h1 class="quiz-title">Science Quiz</h1>
+                <div class="quiz-info">
+                    <span>📚 10 Questions</span>
+                    <span>⏱️ 30s each</span>
+                </div>
+            </div>
+
+            <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+
+            <div id="questionContainer" class="question-card">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <button id="nextButton" class="button" style="display: none;" onclick="nextQuestion()">
+                Next Question
+            </button>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="resultsScreen" class="container results-screen">
+            <div class="score-circle">
+                <div id="scoreText" class="score-text">0/10</div>
+            </div>
+            <h2 id="resultsMessage" class="results-message">Great Job!</h2>
+            <p id="resultsDetails" class="results-details">
+                You completed the quiz in <span id="totalTime">0:00</span>
+            </p>
+            <button class="button" onclick="sendResults()">Share Results</button>
+            <button class="button" onclick="restartQuiz()" style="background-color: transparent; color: var(--tg-theme-button-color, #3390ec); border: 2px solid var(--tg-theme-button-color, #3390ec);">
+                Try Again
+            </button>
+        </div>
+
+        <!-- Timer -->
+        <div id="timer" class="timer" style="display: none;">30</div>
+    </div>
+
+    <script>
+        // Initialize Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // Enable closing confirmation
+        tg.enableClosingConfirmation();
+
+        // Quiz Data
+        const quizData = {
+            questions: [
+                {
+                    id: 1,
+                    text: "What is the chemical symbol for gold?",
+                    options: ["Go", "Gd", "Au", "Ag"],
+                    correct: 2
+                },
+                {
+                    id: 2,
+                    text: "Which planet is known as the Red Planet?",
+                    options: ["Venus", "Mars", "Jupiter", "Saturn"],
+                    correct: 1
+                },
+                {
+                    id: 3,
+                    text: "What is the speed of light in vacuum?",
+                    options: ["299,792 km/s", "150,000 km/s", "399,792 km/s", "199,792 km/s"],
+                    correct: 0
+                },
+                {
+                    id: 4,
+                    text: "Who developed the theory of relativity?",
+                    options: ["Isaac Newton", "Galileo Galilei", "Albert Einstein", "Stephen Hawking"],
+                    correct: 2
+                },
+                {
+                    id: 5,
+                    text: "What is the largest organ in the human body?",
+                    options: ["Heart", "Brain", "Liver", "Skin"],
+                    correct: 3
+                },
+                {
+                    id: 6,
+                    text: "How many bones are in the adult human body?",
+                    options: ["186", "206", "226", "246"],
+                    correct: 1
+                },
+                {
+                    id: 7,
+                    text: "What is the chemical formula for water?",
+                    options: ["H2O", "CO2", "O2", "H2O2"],
+                    correct: 0
+                },
+                {
+                    id: 8,
+                    text: "Which gas makes up most of Earth's atmosphere?",
+                    options: ["Oxygen", "Carbon Dioxide", "Nitrogen", "Hydrogen"],
+                    correct: 2
+                },
+                {
+                    id: 9,
+                    text: "What is the smallest unit of matter?",
+                    options: ["Molecule", "Atom", "Electron", "Quark"],
+                    correct: 3
+                },
+                {
+                    id: 10,
+                    text: "At what temperature does water boil at sea level?",
+                    options: ["90°C", "100°C", "110°C", "120°C"],
+                    correct: 1
+                }
+            ]
+        };
+
+        // Quiz State
+        let currentQuestion = 0;
+        let score = 0;
+        let answers = [];
+        let startTime = null;
+        let questionStartTime = null;
+        let timerInterval = null;
+        let timeLeft = 30;
+
+        // Get user data from Telegram
+        const user = tg.initDataUnsafe?.user || {
+            first_name: 'User',
+            last_name: '',
+            id: 123456
+        };
+
+        // Start Quiz
+        function startQuiz() {
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('quizScreen').style.display = 'block';
+            document.getElementById('timer').style.display = 'flex';
+            
+            startTime = Date.now();
+            currentQuestion = 0;
+            score = 0;
+            answers = [];
+            
+            showQuestion();
+            
+            // Haptic feedback
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }
+
+        // Show Question
+        function showQuestion() {
+            const question = quizData.questions[currentQuestion];
+            questionStartTime = Date.now();
+            
+            // Update progress bar
+            const progress = ((currentQuestion + 1) / quizData.questions.length) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+            
+            // Reset timer
+            clearInterval(timerInterval);
+            timeLeft = 30;
+            updateTimer();
+            startTimer();
+            
+            // Render question
+            const container = document.getElementById('questionContainer');
+            container.innerHTML = `
+                <div class="question-number">Question ${currentQuestion + 1} of ${quizData.questions.length}</div>
+                <div class="question-text">${question.text}</div>
+                <div class="answer-options">
+                    ${question.options.map((option, index) => `
+                        <div class="answer-option" onclick="selectAnswer(${index})">
+                            ${option}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            // Animate entrance
+            container.style.animation = 'none';
+            setTimeout(() => {
+                container.style.animation = 'slideIn 0.3s ease';
+            }, 10);
+        }
+
+        // Timer Functions
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimer();
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    selectAnswer(-1); // Time's up
+                }
+            }, 1000);
+        }
+
+        function updateTimer() {
+            const timerEl = document.getElementById('timer');
+            timerEl.textContent = timeLeft;
+            
+            // Change timer color based on time left
+            timerEl.classList.remove('warning', 'danger');
+            if (timeLeft <= 10 && timeLeft > 5) {
+                timerEl.classList.add('warning');
+            } else if (timeLeft <= 5) {
+                timerEl.classList.add('danger');
+            }
+        }
+
+        // Select Answer
+        function selectAnswer(index) {
+            clearInterval(timerInterval);
+            
+            const question = quizData.questions[currentQuestion];
+            const options = document.querySelectorAll('.answer-option');
+            
+            // Disable all options
+            options.forEach(option => option.classList.add('disabled'));
+            
+            // Mark selected answer
+            if (index >= 0) {
+                options[index].classList.add('selected');
+                
+                // Haptic feedback
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.selectionChanged();
+                }
+            }
+            
+            // Show correct answer
+            setTimeout(() => {
+                options[question.correct].classList.add('correct');
+                
+                if (index >= 0 && index !== question.correct) {
+                    options[index].classList.add('incorrect');
+                    if (tg.HapticFeedback) {
+                        tg.HapticFeedback.notificationOccurred('error');
+                    }
+                } else if (index === question.correct) {
+                    score++;
+                    if (tg.HapticFeedback) {
+                        tg.HapticFeedback.notificationOccurred('success');
+                    }
+                }
+                
+                // Record answer
+                answers.push({
+                    questionId: question.id,
+                    selectedAnswer: index,
+                    correctAnswer: question.correct,
+                    timeSpent: Date.now() - questionStartTime,
+                    isCorrect: index === question.correct
+                });
+                
+                // Show next button
+                document.getElementById('nextButton').style.display = 'block';
+                
+                // Auto-advance after 2 seconds
+                setTimeout(() => {
+                    if (currentQuestion < quizData.questions.length - 1) {
+                        nextQuestion();
+                    }
+                }, 2000);
+                
+            }, 300);
+        }
+
+        // Next Question
+        function nextQuestion() {
+            currentQuestion++;
+            document.getElementById('nextButton').style.display = 'none';
+            
+            if (currentQuestion < quizData.questions.length) {
+                showQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        // Show Results
+        function showResults() {
+            document.getElementById('quizScreen').style.display = 'none';
+            document.getElementById('timer').style.display = 'none';
+            document.getElementById('resultsScreen').style.display = 'block';
+            
+            // Calculate total time
+            const totalTime = Date.now() - startTime;
+            const minutes = Math.floor(totalTime / 60000);
+            const seconds = Math.floor((totalTime % 60000) / 1000);
+            
+            // Update results
+            document.getElementById('scoreText').textContent = `${score}/${quizData.questions.length}`;
+            document.getElementById('totalTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Set message based on score
+            const percentage = (score / quizData.questions.length) * 100;
+            let message = '';
+            if (percentage >= 90) {
+                message = 'Outstanding! 🏆';
+            } else if (percentage >= 70) {
+                message = 'Great Job! 🎉';
+            } else if (percentage >= 50) {
+                message = 'Good Effort! 👍';
+            } else {
+                message = 'Keep Practicing! 💪';
+            }
+            document.getElementById('resultsMessage').textContent = message;
+            
+            // Haptic feedback
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        // Send Results to Bot
+        function sendResults() {
+            const results = {
+                action: 'quiz_completed',
+                quizId: 'science_quiz_001',
+                userId: user.id,
+                userName: `${user.first_name} ${user.last_name}`.trim(),
+                score: score,
+                totalQuestions: quizData.questions.length,
+                percentage: Math.round((score / quizData.questions.length) * 100),
+                timeSpent: Date.now() - startTime,
+                answers: answers,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Send data to bot
+            tg.sendData(JSON.stringify(results));
+            
+            // Show sending feedback
+            const button = event.target;
+            button.textContent = 'Sending...';
+            button.disabled = true;
+            
+            // Close app after sending
+            setTimeout(() => {
+                tg.close();
+            }, 1000);
+        }
+
+        // Restart Quiz
+        function restartQuiz() {
+            document.getElementById('resultsScreen').style.display = 'none';
+            document.getElementById('startScreen').style.display = 'block';
+            
+            // Reset state
+            currentQuestion = 0;
+            score = 0;
+            answers = [];
+        }
+
+        // Handle Back Button
+        tg.BackButton.onClick(() => {
+            if (currentQuestion > 0 && document.getElementById('quizScreen').style.display === 'block') {
+                // Can't go back during quiz
+                tg.showAlert('You cannot go back during the quiz!');
+            } else {
+                tg.close();
+            }
+        });
+
+        // Theme Changes
+        tg.onEvent('themeChanged', () => {
+            // The CSS variables will automatically update
+            console.log('Theme changed');
+        });
+
+        // Main Button (optional)
+        tg.MainButton.text = "Submit Quiz";
+        tg.MainButton.onClick(() => {
+            if (document.getElementById('resultsScreen').style.display === 'block') {
+                sendResults();
+            }
+        });
+
+        // Log initialization
+        console.log('Quiz Web App initialized');
+        console.log('User:', user);
+        console.log('Theme:', tg.themeParams);
+    </script>
+</body>
+</html>
